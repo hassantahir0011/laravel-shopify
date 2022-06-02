@@ -1,11 +1,11 @@
 {
-    "name": "oseintow/laravel-shopify",
+    "name": "hassantahir0011/laravel-shopify",
     "description": "Laravel shopify package",
     "license": "MIT",
     "authors": [
         {
-            "name": "michael osei ntow",
-            "email": "oseintow@gmail.com"
+            "name": "Mr Sindhu",
+            "email": "sajjad@softwarealliance.dk"
         }
     ],
     "require": {
