@@ -158,6 +158,9 @@ class Shopify
             );
         }
 
+        if(isset($responseBody['extensions']))
+            $responseBody['data']['extensions'] = $responseBody['extensions'];
+
         return (is_array($responseBody) && (count($responseBody) > 0)) ? array_shift($responseBody) : $responseBody;
     }
 
