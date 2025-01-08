@@ -139,13 +139,15 @@ class Shopify
 
         $this->parseResponse($response);
         $responseBody = $this->responseBody($response);
+        $response_for_mutation = $responseBody;
+        $userErrors = isset($response_for_mutation['data']) && is_array($response_for_mutation['data']) ? array_shift($response_for_mutation['data']) : [];
+
         $errors = '';
-        if (isset($responseBody['errors']) || isset($responseBody['userErrors']) || $response->getStatusCode() >= 400) {
+        if (isset($responseBody['errors']) || (!empty($userErrors['userErrors'] ?? null)) || $response->getStatusCode() >= 400) {
             if(isset($responseBody['errors']))
                 $errors .= is_array($responseBody['errors']) ? json_encode($responseBody['errors']) : $responseBody['errors'];
-            if(isset($responseBody['userErrors']))
-                $errors .= is_array($responseBody['userErrors']) ? json_encode($responseBody['userErrors']): $responseBody['userErrors'];
-
+            if((!empty($userErrors['userErrors'] ?? null)))
+                $errors .= is_array($userErrors['userErrors']) ? json_encode($userErrors['userErrors']): $userErrors['userErrors'];
             if($response->getStatusCode()  == 404) {
                 throw new ShopifyApiResourceNotFoundException(
                     !empty($errors) ? $errors : $response->getReasonPhrase(),
