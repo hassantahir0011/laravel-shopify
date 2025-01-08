@@ -148,13 +148,13 @@ class Shopify
 
             if($response->getStatusCode()  == 404) {
                 throw new ShopifyApiResourceNotFoundException(
-                    $errors ?? $response->getReasonPhrase(),
+                    !empty($errors) ? $errors : $response->getReasonPhrase(),
                     $response->getStatusCode()
                 );
             }
 
             throw new ShopifyApiException(
-                $errors ?? $response->getReasonPhrase(),
+                !empty($errors) ? $errors : $response->getReasonPhrase(),
                 $response->getStatusCode()
             );
         }
