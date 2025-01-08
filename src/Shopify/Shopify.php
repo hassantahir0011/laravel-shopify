@@ -139,11 +139,12 @@ class Shopify
 
         $this->parseResponse($response);
         $responseBody = $this->responseBody($response);
-
-        if (isset($responseBody['errors']) || $response->getStatusCode() >= 400){
-            $errors = is_array($responseBody['errors'])
-                ? json_encode($responseBody['errors'])
-                : $responseBody['errors'];
+        $errors = '';
+        if (isset($responseBody['errors']) || isset($responseBody['userErrors']) || $response->getStatusCode() >= 400) {
+            if(isset($responseBody['errors']))
+                $errors .= is_array($responseBody['errors']) ? json_encode($responseBody['errors']) : $responseBody['errors'];
+            if(isset($responseBody['userErrors']))
+                $errors .= is_array($responseBody['userErrors']) ? json_encode($responseBody['userErrors']): $responseBody['userErrors'];
 
             if($response->getStatusCode()  == 404) {
                 throw new ShopifyApiResourceNotFoundException(
