@@ -64,6 +64,110 @@ class Shopify
         return $response ?? '';
     }
 
+    // One-time exchange of a non-expiring offline token for an expiring one; Shopify revokes the old token.
+    public function exchangeForExpiringToken($offlineToken)
+    {
+        return $this->requestOAuthToken([
+            'client_id'           => $this->key,
+            'client_secret'       => $this->secret,
+            'grant_type'          => 'urn:ietf:params:oauth:grant-type:token-exchange',
+            'subject_token'       => $offlineToken,
+            'subject_token_type'  => 'urn:shopify:params:oauth:token-type:offline-access-token',
+            'requested_token_type'=> 'urn:shopify:params:oauth:token-type:offline-access-token',
+            'expiring'            => 1,
+        ]);
+    }
+
+    // Rotate the access token; Shopify also rotates the refresh token, so callers must persist the new one.
+    public function refreshAccessToken($refreshToken)
+    {
+        return $this->requestOAuthToken([
+            'client_id'     => $this->key,
+            'client_secret' => $this->secret,
+            'grant_type'    => 'refresh_token',
+            'refresh_token' => $refreshToken,
+        ]);
+    }
+
+    // Own OAuth path (not makeRequest): makeRequest array_shifts the body, dropping refresh_token, and
+    // throws on non-2xx. Returns the full response and never throws.
+    private function requestOAuthToken($payload)
+    {
+        $result = [
+            'ok'                       => false,
+            'access_token'             => null,
+            'refresh_token'            => null,
+            'expires_in'               => null,
+            'refresh_token_expires_in' => null,
+            'scope'                    => null,
+            'status'                   => null,
+            'error_type'               => null,
+            'error'                    => null,
+            'retry_after'              => null,
+        ];
+
+        try {
+            $response = $this->client->request('POST', $this->baseUrl() . 'admin/oauth/access_token', [
+                'form_params'     => $payload,
+                'timeout'         => 15.0,
+                'connect_timeout' => 10.0,
+                'http_errors'     => false,
+                'verify'          => false,
+            ]);
+        } catch (\Throwable $e) {
+            $result['error_type'] = 'network';
+            $result['error'] = $e->getMessage();
+            return $result;
+        }
+
+        $status = $response->getStatusCode();
+        $result['status'] = $status;
+        $body = json_decode($response->getBody(), true);
+
+        if ($status == 429) {
+            $result['error_type'] = 'rate_limited';
+            $retryAfter = $response->getHeader('Retry-After');
+            $result['retry_after'] = isset($retryAfter[0]) ? (int) $retryAfter[0] : 10;
+            return $result;
+        }
+
+        if ($status >= 500) {
+            $result['error_type'] = 'server_error';
+            $result['error'] = is_array($body) ? json_encode($body) : (string) $response->getBody();
+            return $result;
+        }
+
+        if (!is_array($body)) {
+            $result['error_type'] = 'invalid_response';
+            $result['error'] = (string) $response->getBody();
+            return $result;
+        }
+
+        if ($status >= 400 || isset($body['error'])) {
+            $errorCode = $body['error'] ?? '';
+            // Only a genuinely dead subject/refresh token forces a reconnect; other errors are transient/retried.
+            $needsReauth = in_array($errorCode, ['invalid_grant', 'invalid_subject_token', 'invalid_token'], true);
+            $result['error_type'] = $needsReauth ? 'invalid_grant' : 'server_error';
+            $result['error'] = json_encode($body);
+            return $result;
+        }
+
+        if (empty($body['access_token'])) {
+            $result['error_type'] = 'invalid_response';
+            $result['error'] = json_encode($body);
+            return $result;
+        }
+
+        $result['ok'] = true;
+        $result['access_token'] = $body['access_token'];
+        $result['refresh_token'] = $body['refresh_token'] ?? null;
+        $result['expires_in'] = $body['expires_in'] ?? null;
+        $result['refresh_token_expires_in'] = $body['refresh_token_expires_in'] ?? null;
+        $result['scope'] = $body['scope'] ?? null;
+
+        return $result;
+    }
+
     public function setAccessToken($accessToken)
     {
         $this->accessToken = $accessToken;
