@@ -64,6 +64,18 @@ class Shopify
         return $response ?? '';
     }
 
+    // expiring=1 authorization-code grant. Uses requestOAuthToken, not makeRequest — makeRequest array_shifts
+    // the body and would drop refresh_token.
+    public function getExpiringAccessToken($code)
+    {
+        return $this->requestOAuthToken([
+            'client_id'     => $this->key,
+            'client_secret' => $this->secret,
+            'code'          => $code,
+            'expiring'      => 1,
+        ]);
+    }
+
     // One-time exchange of a non-expiring offline token for an expiring one; Shopify revokes the old token.
     public function exchangeForExpiringToken($offlineToken)
     {
