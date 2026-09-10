@@ -157,8 +157,11 @@ class Shopify
 
         if ($status >= 400 || isset($body['error'])) {
             $errorCode = $body['error'] ?? '';
-            // Only a genuinely dead subject/refresh token forces a reconnect; other errors are transient/retried.
-            $needsReauth = in_array($errorCode, ['invalid_grant', 'invalid_subject_token', 'invalid_token'], true);
+            // Terminal cases only. A dead refresh token (expired, replaced, revoked, uninstalled) is always
+            // 401 {"error":"invalid_request"}; a dead exchange subject is 400 invalid_subject_token. Anything
+            // else is transient and retried with the same token.
+            $needsReauth = $status == 401
+                || in_array($errorCode, ['invalid_grant', 'invalid_subject_token', 'invalid_token'], true);
             $result['error_type'] = $needsReauth ? 'invalid_grant' : 'server_error';
             $result['error'] = json_encode($body);
             return $result;
