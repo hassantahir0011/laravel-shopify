@@ -120,6 +120,8 @@ class Shopify
 
         try {
             $response = $this->client->request('POST', $this->baseUrl() . 'admin/oauth/access_token', [
+                // Without this Shopify returns OAuth errors as an HTML page and the error code is lost.
+                'headers'         => ['Accept' => 'application/json'],
                 'form_params'     => $payload,
                 'timeout'         => 15.0,
                 'connect_timeout' => 10.0,
@@ -147,6 +149,13 @@ class Shopify
             $result['error_type'] = 'server_error';
             $result['error'] = is_array($body) ? json_encode($body) : (string) $response->getBody();
             return $result;
+        }
+
+        // Belt and braces: if an error still arrives as HTML, the code is in the page title
+        // ("400 - Oauth error invalid_subject_token"), so recover it rather than calling it transient.
+        if (!is_array($body) && $status >= 400
+            && preg_match('/Oauth error (\w+)/i', (string) $response->getBody(), $m)) {
+            $body = ['error' => $m[1]];
         }
 
         if (!is_array($body)) {
